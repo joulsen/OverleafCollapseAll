@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Overleaf Collapse All Folders
 // @namespace    http://itmunk.dk
-// @version      1.0
+// @version      2.0
 // @description  Adds a button, that when pressed, collapses all folders within the Overleaf file viewer.
 // @author       Andreas Poulsen (@supercigar)
 // @match        https://www.overleaf.com/project/*
@@ -12,8 +12,8 @@
 
 addCollapseAllButton();
 
+// Wait for toolbar to load, in order to add new button
 function addCollapseAllButton(){
-    // Wait for toolbar to load, in order to add new button
     var intv = setInterval(function() {
         var toolbarFiletree = document.getElementsByClassName("toolbar-filetree");
         // Return false until toolbar-filetree is found
@@ -22,45 +22,56 @@ function addCollapseAllButton(){
         }
         //when element is found, clear the interval.
         clearInterval(intv);
-        // Making a var of left half of the toolbar
-        var toolbarHalf = toolbarFiletree[0].firstChild;
-        // Duplicating first button and changing icon using font awesome class
-        var compressBtn = toolbarHalf.firstChild.cloneNode(true);
-        compressBtn.firstChild.className = "fa fa-arrow-up";
-        //compressBtn.style.marginLeft = "1em";
-        compressBtn.onclick = fileTreeCollapse;
+        var toolbarHalf = toolbarFiletree[0].firstElementChild;
+        var compressBtn = toolbarHalf.firstElementChild.cloneNode(true);
+        var label = compressBtn.firstElementChild;
+        var span = label.nextElementSibling;
+        label.className = "fa fa-arrow-up";
+        span.innerText = "Collapse All";
+        compressBtn.onclick = collapseAll;
         toolbarHalf.appendChild(compressBtn);
     }, 100);
 };
 
-// Checks if a button is innermost by seing if the sibling UL contains another UL
-function isInnermostButton(button) {
-    // Go out a parent element until an <li> is found
-	var outerList = button.parentElement;
-    while(outerList.tagName != "LI") {
-        outerList = outerList.parentElement;
-    }
-    // We assume that the sibling of an <li> is <ul> since it was a button (which indicates folders)
-    var outerUl = outerList.nextElementSibling;
-    // We count the <ul> inside the <ul> i.e. how many more lists is within the first <ul>
-    var innerUls = outerUl.getElementsByTagName("ul");
-    return innerUls.length < 1;
+// Get a list of <ul> inside file-tree-root
+function getFolderLists() {
+    var fileTreeRoot = document.getElementsByTagName("file-tree-root")[0];
+    var fileTreeInner = fileTreeRoot.getElementsByClassName("file-tree-inner")[0];
+    var mainList = fileTreeInner.firstElementChild;
+    var folders = mainList.getElementsByClassName("list-unstyled");
+    return folders;
 }
 
-// Main function ran at button press
-function fileTreeCollapse() {
-    var cols = document.querySelectorAll('[aria-label="Collapse"]');;
-    var tries = 0; // I have no idea why this is needed :'(
-    while(cols.length > 1 & tries < 100) {
-        tries += 1;
-        for (let col of cols) {
-            if (isInnermostButton(col)) {
-                col.click();
-            }
+// Check if a <ul> is innermost folder by seing if anymore ul.list-unstyled is inside
+function isFolderInnermost(folder) {
+    var subfolders = folder.getElementsByClassName("list-unstyled");
+    return subfolders.length == 0;
+}
+
+// Collapse a <ul> by finding and pressing the corresponding collapse button
+function collapseFolder(folder) {
+    var parentItem = folder.previousElementSibling;
+    var button = parentItem.querySelectorAll('[aria-label="Collapse"]')[0];
+    button.click();
+}
+
+// Find all innermost elements and collapse them. Returns if length of folders is 0.
+function collapseInnermost() {
+    var folders = getFolderLists()
+    for (let folder of folders) {
+        if (isFolderInnermost(folder)) {
+            collapseFolder(folder);
         }
-        cols = document.querySelectorAll('[aria-label="Collapse"]');
     }
-    if (cols.length > 0) {
-        cols[0].click();
+    return folders.length == 0;
+}
+
+// Keep collapsing innermost until length getFolderList is 0 i.e. collapseInnermost() == true.
+// If the userstyle breaks your browser: Try adding a soft stop here at maybe 100 iterations.
+function collapseAll() {
+    while (true) {
+        if (collapseInnermost() == true) {
+            return;
+        }
     }
 }
